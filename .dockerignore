@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in image)
+README.md
+LICENSE
+SoftwareFactory-PRD.md
+AGENTS.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Nginx config (mounted as volume, not baked in)
+nginx/
+
+# Runtime data
+data/
+
+# Docker files
+docker-compose*.yml
+.dockerignore
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Certificates
+nginx/ssl/
+
+# Plans
+.claude/

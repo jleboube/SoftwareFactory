@@ -1,0 +1,143 @@
+# ============================================================
+# SoftwareFactory Docker Compose
+# AI-powered software development factory
+# Exposed on port 47391 via nginx reverse proxy
+#
+# Usage:
+#   cp .env.example .env   # Configure your API keys
+#   docker compose up -d   # Start the factory
+# ============================================================
+
+services:
+  # -- OpenClaw + Antfarm Gateway --------------------------------
+  openclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: software-factory:local
+    container_name: sf-openclaw
+    restart: unless-stopped
+
+    environment:
+      HOME: /home/node
+      NODE_ENV: production
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GH_TOKEN: ${GH_TOKEN:-}
+      GITHUB_TOKEN: ${GH_TOKEN:-}
+      GIT_USER_NAME: ${GIT_USER_NAME:-SoftwareFactory Bot}
+      GIT_USER_EMAIL: ${GIT_USER_EMAIL:-bot@localhost}
+
+    volumes:
+      - openclaw_state:/home/node/.openclaw
+      - workspace_data:/home/node/.openclaw/workspace
+      - antfarm_db:/data/antfarm-db
+      - ./config/openclaw.json:/home/node/.openclaw/openclaw.json:ro
+      - ./workflows:/home/node/.openclaw/workspace/antfarm/workflows:ro
+
+    networks:
+      - internal
+
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+
+    security_opt:
+      - no-new-privileges:true
+
+    tmpfs:
+      - /tmp:size=256M,noexec,nosuid
+
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # -- Nginx Reverse Proxy (security-hardened) -------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: sf-nginx
+    restart: unless-stopped
+
+    ports:
+      - "${SF_EXTERNAL_PORT:-47391}:8080"
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+
+    networks:
+      - internal
+      - external
+
+    depends_on:
+      openclaw:
+        condition: service_healthy
+
+    security_opt:
+      - no-new-privileges:true
+
+    read_only: true
+
+    tmpfs:
+      - /tmp:size=16M,noexec,nosuid
+      - /var/cache/nginx:size=32M
+      - /run:size=1M
+
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+        reservations:
+          memory: 32M
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+# -- Networks ----------------------------------------------------
+networks:
+  internal:
+    driver: bridge
+    internal: true
+  external:
+    driver: bridge
+
+# -- Volumes -----------------------------------------------------
+volumes:
+  openclaw_state:
+    driver: local
+  workspace_data:
+    driver: local
+  antfarm_db:
+    driver: local
+  nginx_logs:
+    driver: local

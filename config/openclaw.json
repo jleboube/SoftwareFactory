@@ -1,0 +1,19 @@
+{
+  "agent": {
+    "model": "anthropic/claude-opus-4-6",
+    "defaults": {
+      "workspace": "/home/node/.openclaw/workspace",
+      "sandbox": {
+        "mode": "non-main"
+      }
+    }
+  },
+  "channels": {},
+  "gateway": {
+    "port": 18789,
+    "bind": "0.0.0.0",
+    "auth": {
+      "mode": "token"
+    }
+  }
+}

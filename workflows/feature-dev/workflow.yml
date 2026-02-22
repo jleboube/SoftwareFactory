@@ -1,0 +1,300 @@
+# SoftwareFactory Feature Development Workflow
+# 7 specialized agents handling the full development lifecycle
+#
+# Pipeline: plan -> setup -> implement (loop) -> verify -> test -> PR -> review
+# Each agent runs in a fresh session with clean context.
+# Memory persists via git history and progress files.
+
+id: sf-feature-dev
+name: Software Factory - Feature Development
+version: 1
+description: >
+  Full-lifecycle feature development for small businesses.
+  7 specialized agents handle planning, setup, implementation,
+  verification, testing, PR creation, and code review.
+
+polling:
+  model: default
+  timeoutSeconds: 120
+
+agents:
+  - id: planner
+    name: Planner
+    role: analysis
+    description: Decomposes tasks into ordered user stories.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: setup
+    name: Setup
+    role: coding
+    description: Prepares environment, creates branch, establishes baseline.
+    workspace:
+      baseDir: agents/setup
+      files:
+        AGENTS.md: agents/setup/AGENTS.md
+        SOUL.md: agents/setup/SOUL.md
+        IDENTITY.md: agents/setup/IDENTITY.md
+
+  - id: implement
+    name: Implement
+    role: coding
+    description: Implements features, writes tests, commits code.
+    workspace:
+      baseDir: agents/implement
+      files:
+        AGENTS.md: agents/implement/AGENTS.md
+        SOUL.md: agents/implement/SOUL.md
+        IDENTITY.md: agents/implement/IDENTITY.md
+
+  - id: verify
+    name: Verify
+    role: verification
+    description: Quality gate - verifies implementation correctness.
+    workspace:
+      baseDir: agents/verify
+      files:
+        AGENTS.md: agents/verify/AGENTS.md
+        SOUL.md: agents/verify/SOUL.md
+        IDENTITY.md: agents/verify/IDENTITY.md
+
+  - id: test
+    name: Test
+    role: testing
+    description: Integration and E2E testing after all stories.
+    workspace:
+      baseDir: agents/test
+      files:
+        AGENTS.md: agents/test/AGENTS.md
+        SOUL.md: agents/test/SOUL.md
+        IDENTITY.md: agents/test/IDENTITY.md
+
+  - id: pr
+    name: PR Creator
+    role: coding
+    description: Creates GitHub pull requests with documentation.
+    workspace:
+      baseDir: agents/pr
+      files:
+        AGENTS.md: agents/pr/AGENTS.md
+        SOUL.md: agents/pr/SOUL.md
+        IDENTITY.md: agents/pr/IDENTITY.md
+
+  - id: reviewer
+    name: Reviewer
+    role: analysis
+    description: Reviews PRs, requests changes or approves.
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+        SOUL.md: agents/reviewer/SOUL.md
+        IDENTITY.md: agents/reviewer/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Decompose the following task into ordered user stories for autonomous execution.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Explore the codebase to understand the stack, conventions, and patterns
+      2. Break the task into small user stories (max 20)
+      3. Order by dependency: schema/DB first, backend, frontend, integration
+      4. Each story must fit in one developer session (one context window)
+      5. Every acceptance criterion must be mechanically verifiable
+      6. Always include "Typecheck passes" as the last criterion in every story
+      7. Every story MUST include test criteria
+
+      Reply with:
+      STATUS: done
+      REPO: /path/to/repo
+      BRANCH: feature-branch-name
+      STORIES_JSON: [ ... array of story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: setup_env
+    agent: setup
+    input: |
+      Prepare the development environment for this feature.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      Instructions:
+      1. cd into the repo
+      2. Create the feature branch (git checkout -b {{branch}})
+      3. Read package.json, CI config, test config to understand build/test setup
+      4. Ensure .gitignore exists
+      5. Run the build to establish a baseline
+      6. Run the tests to establish a baseline
+      7. Report what you found
+
+      Reply with:
+      STATUS: done
+      BUILD_CMD: <build command>
+      TEST_CMD: <test command>
+      CI_NOTES: <brief CI notes>
+      BASELINE: <baseline status>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: implement_code
+    agent: implement
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify_impl
+    input: |
+      Implement the following user story in a fresh session.
+
+      TASK (overall): {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+
+      CURRENT STORY: {{current_story}}
+      COMPLETED STORIES: {{completed_stories}}
+      STORIES REMAINING: {{stories_remaining}}
+      VERIFY FEEDBACK (if retrying): {{verify_feedback}}
+      PROGRESS LOG: {{progress}}
+
+      Instructions:
+      1. Read progress-{{run_id}}.txt
+      2. Pull latest on the branch
+      3. Implement this story only
+      4. Write tests for this story
+      5. Run typecheck / build
+      6. Run tests to confirm they pass
+      7. Commit: feat: {{current_story_id}} - {{current_story_title}}
+      8. Append to progress-{{run_id}}.txt
+
+      Reply with:
+      STATUS: done
+      CHANGES: what you implemented
+      TESTS: what tests you wrote
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_impl
+    agent: verify
+    input: |
+      Verify the developer's work on this story.
+
+      TASK (overall): {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      TEST_CMD: {{test_cmd}}
+      CURRENT STORY: {{current_story}}
+      PROGRESS LOG: {{progress}}
+
+      Check:
+      1. Code exists (not just TODOs or placeholders)
+      2. Each acceptance criterion is met
+      3. Tests were written
+      4. Tests pass (run {{test_cmd}})
+      5. No obvious incomplete work
+      6. Typecheck passes
+
+      Reply with STATUS: done and VERIFIED: <details>
+      Or STATUS: retry and ISSUES: <list>
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement_code
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: run_tests
+    agent: test
+    input: |
+      Integration and E2E testing of the completed feature.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+      PROGRESS LOG: {{progress}}
+
+      Your job:
+      1. Run the full test suite
+      2. Look for integration issues between stories
+      3. Check error handling and edge cases
+      4. Verify the overall feature works as a cohesive whole
+
+      Reply with STATUS: done and RESULTS: <details>
+      Or STATUS: retry and FAILURES: <list>
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement_code
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: create_pr
+    agent: pr
+    input: |
+      Create a pull request for the completed feature.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      RESULTS: {{results}}
+      PROGRESS LOG: {{progress}}
+
+      Create a PR with:
+      - Clear title summarizing the change
+      - Description explaining what and why
+      - Reference to what was tested
+
+      Use: gh pr create
+
+      Reply with STATUS: done and PR: <url>
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
+
+  - id: review_pr
+    agent: reviewer
+    input: |
+      Review the pull request.
+
+      PR: {{pr}}
+      TASK: {{task}}
+      CHANGES: {{changes}}
+      PROGRESS LOG: {{progress}}
+
+      Review for code quality, bugs, test coverage, and conventions.
+      Post your review to GitHub using gh pr review.
+
+      Reply with STATUS: done and DECISION: approved
+      Or STATUS: retry and DECISION: changes_requested with FEEDBACK: <list>
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement_code
+      max_retries: 3
+      on_exhausted:
+        escalate_to: human
