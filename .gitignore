@@ -44,3 +44,11 @@ logs/
 
 # Plan files
 .claude/
+# Files blocked by secret scanner - DO NOT REMOVE
+workflows/feature-dev/agents/implement/AGENTS.md
+workflows/feature-dev/agents/planner/AGENTS.md
+workflows/feature-dev/agents/pr/AGENTS.md
+workflows/feature-dev/agents/reviewer/AGENTS.md
+workflows/feature-dev/agents/setup/AGENTS.md
+workflows/feature-dev/agents/test/AGENTS.md
+workflows/feature-dev/agents/verify/AGENTS.md
